@@ -16,6 +16,12 @@ pub struct Db {
     connection: Connection,
 }
 
+#[derive(Debug)]
+pub struct DbItem {
+    pub path: PathBuf,
+    pub name: String,
+}
+
 impl Db {
     pub fn new(path: PathBuf) -> Self {
         if !path.exists() {
@@ -46,5 +52,24 @@ impl Db {
 
         tx.commit().unwrap();
         Ok(())
+    }
+
+    pub fn iterate_items(&self) -> impl Iterator<Item = DbItem> + '_ {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id, name FROM files")
+            .unwrap();
+        let rows: Vec<_> = statement
+            .query_map([], |row| {
+                let id: i64 = row.get(0)?;
+                Ok(DbItem {
+                    path: self.path.join(id.to_string()),
+                    name: row.get(1)?,
+                })
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        rows.into_iter()
     }
 }
